@@ -39,8 +39,10 @@ CRITERIOS = (
     ('3 d), 6 y 14 c)', 'Calidad y rectificación de datos', INTERNA,
      'Verifica exactitud, actualización y pertinencia con casos depurados. Revisa correcciones y, cuando '
      'proceda, su comunicación a destinatarios.'),
-    ('3 g) y 14 ter a)', 'Publicación y versión de la política', PUBLICA,
-     'Registra la ubicación, fecha y versión de la política. Revisa si es accesible y comprensible.'),
+    ('14 ter a)', 'Política de privacidad disponible', PUBLICA,
+     'Comprueba que la política de privacidad del sitio esté publicada y se pueda abrir.'),
+    ('3 g) y 14 ter a)', 'Fecha y versión de la política', PUBLICA,
+     'Comprueba que la política publicada indique su fecha y versión.'),
     ('14 ter b)', 'Identificación del responsable', PUBLICA,
      'Verifica la identificación del responsable, su representante legal y el encargado de prevención si existe.'),
     ('14 ter c)', 'Publicación del canal de privacidad', PUBLICA,

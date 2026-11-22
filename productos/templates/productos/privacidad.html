@@ -3,7 +3,7 @@
 {% block content %}
 <article class="narrow policy">
     <div class="intro">
-        <p class="kicker">Versión 2 · {{ fecha_corte }}</p>
+        <p class="kicker">Versión 3 · {{ fecha_corte }}</p>
         <h1>Privacidad y derechos</h1>
         <p>Información sobre el tratamiento en el piloto académico de auditoría de sitios web.</p>
     </div>
@@ -15,7 +15,7 @@
     {% endif %}
     <h2>Datos tratados y finalidad</h2>
     <ul>
-        <li>La administración crea las cuentas y asigna el rol. Django guarda el nombre de usuario, el hash de la contraseña, el rol y las fechas de alta y último inicio de sesión.</li>
+        <li>Puedes crear una cuenta con un nombre de usuario y una contraseña. El registro asigna el rol Usuario. Django guarda el nombre de usuario, un hash de la contraseña, el rol y las fechas de alta y último inicio de sesión.</li>
         <li><code>{{ cookie_sesion }}</code> mantiene tu sesión iniciada. Su duración configurada es de {{ dias_sesion }} días y se retira al cerrar sesión.</li>
         <li><code>{{ cookie_csrf }}</code> ayuda a evitar envíos de formularios en tu nombre. Su duración configurada es de {{ dias_csrf }} días.</li>
         <li>Los usuarios registran la URL, alcance, fecha y evidencia de los sitios evaluados. El reporte se genera a partir de los resultados guardados y omite el identificador de la cuenta.</li>

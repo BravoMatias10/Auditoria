@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from email.message import Message
+from gzip import compress
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import Group, User
@@ -8,7 +9,7 @@ from django.urls import reverse
 
 from .criterios import CRITERIOS
 from .models import Auditoria, Resultado
-from .revision_publica import LIMITE_BYTES, Pagina, PaginaInaccesible, Revision, revisar_sitio
+from .revision_publica import LIMITE_BYTES, Pagina, PaginaInaccesible, Revision, leer_recurso, revisar_sitio
 
 
 class AuditoriasTests(TestCase):
@@ -250,7 +251,7 @@ class AuditoriasTests(TestCase):
         reporte = self.client.get(reverse('reporte', args=[auditoria.pk]))
         self.assertContains(reporte, 'Hay puntos pendientes.')
         self.assertContains(reporte, 'se encontró una política de privacidad pública')
-        self.assertContains(reporte, 'Cumple: 4')
+        self.assertContains(reporte, 'Cumple: 5')
 
     @patch('productos.revision_publica.leer_pagina', side_effect=PaginaInaccesible)
     def test_pagina_inaccesible_genera_informe_sin_inventar_resultados(self, consultar):
@@ -276,13 +277,14 @@ class RevisionPublicaTests(SimpleTestCase):
             '<a href="https://otro.cl/privacidad">Política de privacidad</a>'
             '<script>Política de privacidad. Versión 3.</script>'
         ), False)
-        resultado = revisar_sitio('http://ejemplo.cl/')
+        with patch('productos.revision_publica.renderizar_html', return_value=('', '')):
+            resultado = revisar_sitio('http://ejemplo.cl/')
         consultar.assert_called_once_with('http://ejemplo.cl/', 'ejemplo.cl')
         self.assertEqual(
             resultado.hallazgos['Protección observable de la conexión']['estado'],
             Resultado.Estado.NO_CUMPLE,
         )
-        self.assertNotIn('Publicación y versión de la política', resultado.hallazgos)
+        self.assertNotIn('Política de privacidad disponible', resultado.hallazgos)
 
     @patch('productos.revision_publica.socket.create_connection')
     @patch('productos.revision_publica.socket.getaddrinfo')
@@ -313,7 +315,7 @@ class RevisionPublicaTests(SimpleTestCase):
         conexion_observada = revision.hallazgos['Protección observable de la conexión']
         self.assertEqual(conexion_observada['estado'], Resultado.Estado.CUMPLE)
         self.assertIn('respondió con HTTPS', conexion_observada['evidencia'])
-        self.assertNotIn('Publicación y versión de la política', revision.hallazgos)
+        self.assertNotIn('Política de privacidad disponible', revision.hallazgos)
 
     @patch('productos.revision_publica.conexion_http')
     def test_redireccion_a_otro_dominio_conserva_respuesta_inicial(self, conexion):
@@ -343,3 +345,150 @@ class RevisionPublicaTests(SimpleTestCase):
         revision = revisar_sitio('https://ejemplo.cl/')
         self.assertIn('no pudo conectarse al sitio desde esta red', revision.resumen)
         self.assertEqual(revision.hallazgos, {})
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_pagina_comprimida_y_mayor_que_limite_anterior(self, conexion):
+        contenido = (
+            '<title>Política de privacidad</title><p>Ejercicio de derechos.</p>'
+            + 'a' * (384 * 1024)
+        ).encode()
+        self.respuesta_http(conexion, 200, compress(contenido), Content_Encoding='gzip')
+        revision = revisar_sitio('https://ejemplo.cl/privacidad')
+        self.assertEqual(
+            revision.hallazgos['Política de privacidad disponible']['estado'], Resultado.Estado.CUMPLE,
+        )
+        self.assertNotIn('Solo se revisó la parte inicial', revision.resumen)
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_compresion_invalida_conserva_la_observacion_https(self, conexion):
+        self.respuesta_http(conexion, 200, b'gzip no valido', Content_Encoding='gzip')
+        revision = revisar_sitio('https://ejemplo.cl/')
+        self.assertIn('No se pudo leer la página comprimida', revision.resumen)
+        self.assertEqual(
+            revision.hallazgos['Protección observable de la conexión']['estado'], Resultado.Estado.CUMPLE,
+        )
+
+    @patch('productos.revision_publica.leer_pagina')
+    def test_youtube_consulta_politica_oficial_cuando_portada_no_la_muestra(self, consultar):
+        portada = 'https://www.youtube.com/'
+        politica = 'https://policies.google.com/privacy'
+        consultar.side_effect = [
+            Pagina(portada, '<title>YouTube</title>', True, aviso='Solo se revisó la parte inicial.'),
+            Pagina(politica, '<title>Privacy Policy</title><p>Effective October 16, 2026</p><p>Cookies</p>', True),
+        ]
+        revision = revisar_sitio(portada)
+        self.assertEqual(consultar.call_args_list[-1].args, (politica, 'policies.google.com'))
+        disponible = revision.hallazgos['Política de privacidad disponible']
+        self.assertEqual(disponible['estado'], Resultado.Estado.CUMPLE)
+        self.assertIn(politica, disponible['evidencia'])
+        self.assertIn('https://help.youtube.com/', disponible['evidencia'])
+        self.assertEqual(revision.hallazgos['Fecha y versión de la política']['estado'], Resultado.Estado.NO_VERIFICABLE)
+        self.assertIn('Se encontró la fecha', revision.hallazgos['Fecha y versión de la política']['observacion'])
+        self.assertNotIn('Conservación, supresión y anonimización', revision.hallazgos)
+
+    @patch('productos.revision_publica.leer_pagina')
+    def test_acepta_politica_https_publicada_con_una_declaracion_explicita(self, consultar):
+        portada = 'https://ejemplo.cl/'
+        politica = 'https://portal-privacidad.cl/aviso'
+        consultar.side_effect = [
+            Pagina(portada, f'<link rel="privacy-policy" href="{politica}">', True),
+            Pagina(politica, '<h1>Aviso de privacidad</h1><p>Información del servicio.</p>', True),
+        ]
+        revision = revisar_sitio(portada)
+        self.assertEqual(consultar.call_args_list[-1].args, (politica, 'portal-privacidad.cl'))
+        evidencia = revision.hallazgos['Política de privacidad disponible']['evidencia']
+        self.assertIn(portada, evidencia)
+        self.assertIn(politica, evidencia)
+
+    @patch('productos.revision_publica.leer_pagina')
+    def test_bloqueo_del_aviso_oficial_no_se_confunde_con_politica_verificada(self, consultar):
+        consultar.side_effect = [
+            Pagina('https://www.youtube.com/', '<title>YouTube</title>', True),
+            Pagina('https://policies.google.com/privacy', '', True, 403, 'El sitio respondió con el código 403.'),
+        ]
+        revision = revisar_sitio('https://www.youtube.com/')
+        self.assertNotIn('Política de privacidad disponible', revision.hallazgos)
+        self.assertIn('no pudimos leerla', revision.resumen)
+
+
+    @patch('productos.revision_publica.renderizar_html')
+    @patch('productos.revision_publica.leer_pagina')
+    def test_navegador_encuentra_un_enlace_agregado_con_javascript(self, consultar, renderizar):
+        inicio = 'https://ejemplo.cl/'
+        politica = 'https://ejemplo.cl/aviso'
+        consultar.side_effect = [
+            Pagina(inicio, '<main></main><script src="/inicio.js"></script>', True),
+            Pagina(politica, '<h1>Aviso de privacidad</h1><p>Protegemos los datos de nuestros usuarios.</p>', True),
+        ]
+        renderizar.return_value = '<main><a href="/aviso">Aviso de privacidad</a></main>', ''
+        revision = revisar_sitio(inicio)
+        renderizar.assert_called_once()
+        self.assertIn('El navegador permitió encontrar', revision.resumen)
+        self.assertEqual(revision.hallazgos['Política de privacidad disponible']['estado'], Resultado.Estado.CUMPLE)
+
+    @patch('productos.revision_publica.renderizar_html')
+    @patch('productos.revision_publica.leer_pagina')
+    def test_navegador_lee_una_politica_que_solo_tiene_titulo_en_html_inicial(self, consultar, renderizar):
+        inicio = 'https://ejemplo.cl/'
+        politica = 'https://ejemplo.cl/privacidad'
+        consultar.side_effect = [
+            Pagina(inicio, '<a href="/privacidad">Política de privacidad</a>', True),
+            Pagina(politica, '<title>Política de privacidad</title><script src="/app.js"></script>', True),
+        ]
+        renderizar.return_value = '<h1>Política de privacidad</h1><p>Protegemos los datos de nuestros usuarios.</p>', ''
+        revision = revisar_sitio(inicio)
+        self.assertEqual(consultar.call_count, 2)
+        self.assertEqual(renderizar.call_args.args[0].url, politica)
+        self.assertEqual(revision.hallazgos['Política de privacidad disponible']['estado'], Resultado.Estado.CUMPLE)
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_navegador_no_abre_recursos_de_otro_sitio(self, conectar):
+        respuesta = leer_recurso('https://otro.cl/recurso.js', 'ejemplo.cl', 'script', 2)
+        self.assertIsNone(respuesta)
+        conectar.assert_not_called()
+
+
+class RegistroTests(TestCase):
+    def datos_registro(self, usuario='cuenta-piloto'):
+        return {
+            'username': usuario,
+            'password1': 'Travesia-piloto-9142!',
+            'password2': 'Travesia-piloto-9142!',
+        }
+
+    def test_desde_el_login_un_usuario_se_registra_e_inicia_sesion(self):
+        login = reverse('login')
+        registro = reverse('registro')
+        self.assertContains(self.client.get(login), registro)
+        formulario = self.client.get(registro)
+        self.assertContains(formulario, 'Crear cuenta')
+        self.assertContains(formulario, reverse('privacidad'))
+        datos = self.datos_registro()
+        datos.update(is_staff='on', is_superuser='on', email='prueba@ejemplo.cl')
+        self.assertRedirects(self.client.post(registro, datos), login)
+        cuenta = User.objects.get(username=datos['username'])
+        self.assertEqual(list(cuenta.groups.values_list('name', flat=True)), ['Usuario'])
+        self.assertFalse(cuenta.is_staff)
+        self.assertFalse(cuenta.is_superuser)
+        self.assertEqual(cuenta.email, '')
+        self.assertTrue(cuenta.check_password(datos['password1']))
+        self.assertRedirects(self.client.post(login, {
+            'username': datos['username'], 'password': datos['password1'],
+        }), reverse('listar'))
+        self.assertRedirects(self.client.get(registro), reverse('listar'))
+        self.assertEqual(self.client.get(reverse('admin:auth_user_changelist')).status_code, 302)
+
+    def test_registro_rechaza_nombre_repetido_y_contrasenas_distintas(self):
+        registro = reverse('registro')
+        datos = self.datos_registro()
+        User.objects.create_user(datos['username'], password='OtroAcceso-2026!')
+        self.assertTrue(self.client.post(registro, datos).context['form'].has_error('username'))
+        distintos = self.datos_registro('cuenta-nueva')
+        distintos['password2'] = 'OtraClave-2026!'
+        self.assertTrue(self.client.post(registro, distintos).context['form'].has_error('password2'))
+        self.assertFalse(User.objects.filter(username='cuenta-nueva').exists())
+
+    def test_registro_requiere_csrf(self):
+        navegador = Client(enforce_csrf_checks=True)
+        self.assertEqual(navegador.post(reverse('registro'), self.datos_registro()).status_code, 403)
+        self.assertEqual(User.objects.count(), 0)

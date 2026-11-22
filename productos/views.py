@@ -1,7 +1,10 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
@@ -32,6 +35,30 @@ def auditoria_visible(user, pk):
 def auditoria_propia(user, pk):
     rol_de(user)
     return get_object_or_404(Auditoria, pk=pk, propietario=user)
+
+
+@never_cache
+def registrarse(request):
+    if request.user.is_authenticated:
+        return redirect('listar')
+
+    form = UserCreationForm(request.POST if request.method == 'POST' else None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            with transaction.atomic():
+                cuenta = form.save()
+                grupo, _ = Group.objects.get_or_create(name='Usuario')
+                cuenta.groups.add(grupo)
+        except IntegrityError:
+            if not get_user_model().objects.filter(username=form.cleaned_data['username']).exists():
+                raise
+            form.add_error('username', 'Ese nombre de usuario ya está en uso.')
+        else:
+            return redirect('login')
+
+    return render(request, 'productos/formulario.html', {
+        'form': form, 'titulo': 'Crear cuenta', 'registro': True,
+    })
 
 
 @never_cache

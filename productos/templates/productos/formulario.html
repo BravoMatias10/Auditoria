@@ -5,6 +5,9 @@
     <div class="intro">
         {% if resultado %}<p class="kicker">Art. {{ resultado.articulo }}</p>{% endif %}
         <h1>{{ titulo }}</h1>
+        {% if registro %}
+            <p>Elige un nombre de usuario y una contraseña. Consulta cómo tratamos tus datos en <a href="{% url 'privacidad' %}">Privacidad y derechos</a>.</p>
+        {% endif %}
         {% if auditoria_nueva %}<p>Ingresa la URL. La aplicación revisará lo que está publicado y preparará los resultados.</p>{% endif %}
         {% if resultado %}
             <p>{{ resultado.guia }}</p>
@@ -23,8 +26,10 @@
         </div>
         {% endfor %}
         <div class="actions">
-            <button class="button" type="submit">{% if auditoria_nueva %}Auditar sitio{% else %}Guardar{% endif %}</button>
-            {% if auditoria %}
+            <button class="button" type="submit">{% if registro %}Crear cuenta{% elif auditoria_nueva %}Auditar sitio{% else %}Guardar{% endif %}</button>
+            {% if registro %}
+                <a class="button secondary" href="{% url 'login' %}">Volver al inicio de sesión</a>
+            {% elif auditoria %}
                 <a class="button secondary" href="{% url 'detalle' auditoria.pk %}{% if resultado %}#criterio-{{ resultado.pk }}{% endif %}">Cancelar</a>
             {% else %}
                 <a class="button secondary" href="{% url 'listar' %}">Cancelar</a>

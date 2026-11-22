@@ -1,6 +1,6 @@
 # Auditoría web de protección de datos personales
 
-Proyecto académico basado en `catalogo`. Consulta un sitio web y organiza los resultados según 43 criterios de la Ley chilena N.º 19.628 modificada por la Ley N.º 21.719. Cada auditoría registra el alcance y cada resultado conserva su artículo, evidencia, observación, estado y acciones pendientes.
+Proyecto académico basado en `catalogo`. Consulta un sitio web y organiza los resultados según 44 criterios de la Ley chilena N.º 19.628 modificada por la Ley N.º 21.719. Cada auditoría registra el alcance y cada resultado conserva su artículo, evidencia, observación, estado y acciones pendientes.
 
 ## Ejecutar en local
 
@@ -12,6 +12,7 @@ Usa **Python 3.11.0**, **Django 3.2.25** y el módulo estándar **sqlite3**. Eje
 py -3.11 --version
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m playwright install chromium
 .\.venv\Scripts\python.exe -m django --version
 .\.venv\Scripts\python.exe -c "import sqlite3; print(sqlite3.sqlite_version)"
 .\.venv\Scripts\python.exe manage.py migrate
@@ -20,12 +21,22 @@ $env:DJANGO_DEBUG = "1"
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
+Si ejecutas el proyecto en Windows sin entorno virtual, instala la actualización desde la carpeta que contiene `manage.py`:
+
+```powershell
+py -3.11 -m pip install --user -r requirements.txt
+py -3.11 -m playwright install chromium
+```
+
+Usa `py -3.11 manage.py` para los comandos de Django.
+
 ### macOS o Linux
 
 ```bash
 python3.11 --version
 python3.11 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m playwright install chromium
 .venv/bin/python -m django --version
 .venv/bin/python -c 'import sqlite3; print(sqlite3.sqlite_version)'
 .venv/bin/python manage.py migrate
@@ -37,9 +48,8 @@ Abre [la aplicación local](http://127.0.0.1:8000/). Las migraciones crean `db.s
 
 ## Configurar los roles
 
-1. Entra con la cuenta creada por `createsuperuser`. El rol **Administrador** corresponde a una cuenta superusuaria de Django.
-2. En **Administración → Grupos**, crea un grupo llamado exactamente `Usuario`. Déjalo sin permisos del panel administrativo.
-3. En **Administración → Usuarios**, crea una cuenta de prueba y asígnala a `Usuario`. Conserva la cuenta activa y deja desactivados los permisos de personal y de superusuario. Crea una segunda cuenta del mismo modo para verificar el aislamiento.
+1. Para el rol **Usuario**, elige **Crear cuenta** en la pantalla de inicio de sesión. Crea una cuenta ficticia e inicia sesión. El registro asigna el rol automáticamente.
+2. Para el rol **Administrador**, entra con la cuenta creada por `createsuperuser`. Desde **Administración → Usuarios** puedes gestionar las cuentas.
 
 El administrador gestiona cuentas y consulta todas las auditorías y sus reportes. Los usuarios consultan solo sus registros. Ambos roles pueden crear auditorías y editar o eliminar aquellas de las que son propietarios. Las vistas comprueban el rol y el propietario aunque se introduzca la URL directa.
 
@@ -50,7 +60,9 @@ El administrador gestiona cuentas y consulta todas las auditorías y sus reporte
 3. Revisa los estados por punto. **Cumple** significa que se pudo comprobar ese punto. **No cumple** indica un problema observado. **No verificable** significa que la revisión encontró una mención insuficiente, no pudo leer la página o requiere información interna. Puedes adjuntar una referencia depurada al criterio si consigues evidencia posterior. **No aplica** exige una justificación.
 4. Abre **Ver reporte** y selecciona **Imprimir / Guardar como PDF** para exportar el documento y adjuntarlo por correo.
 
-La revisión usa la biblioteca estándar de Python y sigue hasta dos enlaces HTML de privacidad del mismo dominio. Consulta HTTP o HTTPS en sus puertos habituales, valida la dirección en cada redirección y usa destinos públicos IPv4. Una página que dependa de JavaScript, un documento PDF, un destino IPv6 exclusivo o una sección con autenticación puede quedar sin verificar. Si una página es extensa, se revisa solo el inicio. Cuando la página no puede leerse, el reporte explica el motivo y conserva lo que pudo observar de la conexión. Se guardan hallazgos resumidos y sus páginas de referencia.
+La primera revisión lee HTML y sigue hasta dos enlaces públicos de privacidad. Una página puede declarar su política en otro dominio mediante un enlace seguro con la relación `privacy-policy`. Para YouTube, si no encuentra la política en la página leída, consulta la política de Google enlazada en la ayuda oficial de YouTube. Consulta HTTP o HTTPS en sus puertos habituales, valida la dirección en cada redirección y usa destinos públicos IPv4. Admite HTML normal y comprimido con gzip. Si una página es extensa, se revisan hasta 2 MiB de contenido. Cuando la página no puede leerse, el reporte explica el motivo y conserva lo que pudo observar de la conexión. Se guardan hallazgos resumidos y sus páginas de referencia.
+
+Cuando la primera lectura no encuentra una política y hay indicios de JavaScript, Playwright abre Chromium de forma aislada. La aplicación consulta recursos públicos del sitio con lectura acotada y no usa la sesión del auditor. Una página que requiera inicio de sesión, CAPTCHA, scripts indispensables de otro dominio, PDF o un destino solo IPv6 puede quedar sin verificar.
 
 La vista se genera con los resultados guardados al momento de abrirla. Una copia de PDF exportada queda en manos de quien la guarda o comparte. El sistema limita el acceso a la vista original.
 
@@ -58,7 +70,7 @@ La vista se genera con los resultados guardados al momento de abrirla. Una copia
 
 | Datos | Origen y finalidad | Medida aplicada |
 |---|---|---|
-| Nombre de usuario, hash de contraseña, rol, estado de cuenta y fechas de alta y acceso | Cuenta provisionada por la administración. Autenticación y autorización. El panel de Django puede almacenar datos de contacto o nombre si el operador los ingresa. Mantén esos campos vacíos cuando sean innecesarios. | Hash estándar de Django y acceso administrativo restringido. |
+| Nombre de usuario, hash de contraseña, rol, estado de cuenta y fechas de alta y acceso | Registro del usuario o alta administrativa. Autenticación y autorización. El panel de Django puede almacenar datos de contacto o nombre si el operador los ingresa. Mantén esos campos vacíos cuando sean innecesarios. | Hash estándar de Django y acceso administrativo restringido. |
 | Datos de sesión, cookie de sesión, token CSRF y actividad administrativa | Acceso autenticado, integridad de formularios y operaciones sobre cuentas en el panel de Django. | Sesiones de Django, protección CSRF y peticiones POST para cambios. La clave se toma del entorno si se configura o se genera para la ejecución. |
 | Propietario, URL, fechas, alcance, artículos, evidencia, observaciones y acciones | URL y notas del auditor, hallazgos resumidos de páginas públicas y evidencia adicional si se registra. Sirve para generar el reporte. | Aislamiento por propietario, acceso de consulta del administrador, campos acotados y confirmación para borrar. |
 | Reportes exportados | Datos de la auditoría seleccionada. | Vista autenticada y sin almacenamiento de PDF en el servidor. El reporte omite la identidad de la cuenta. El auditor debe revisar los campos libres para excluir identificadores antes de exportar. |
