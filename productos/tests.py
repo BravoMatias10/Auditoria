@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from .criterios import CRITERIOS
 from .models import Auditoria, Resultado
+from .revision_publica import Pagina, PaginaInaccesible, Revision, revisar_sitio
 
 
 class AuditoriasTests(TestCase):
@@ -31,9 +33,10 @@ class AuditoriasTests(TestCase):
     def crear_auditoria(self, cuenta=None, sitio='https://sitio-ejemplo.cl/privacidad'):
         if cuenta:
             self.entrar(cuenta)
-        respuesta = self.client.post(reverse('crear'), {
-            'url': sitio, 'alcance': 'Portada pública y aviso de privacidad.',
-        })
+        with patch('productos.views.revisar_sitio', return_value=Revision('Consulta de prueba.', {})):
+            respuesta = self.client.post(reverse('crear'), {
+                'url': sitio, 'alcance': 'Portada pública y aviso de privacidad.',
+            })
         auditoria = Auditoria.objects.latest('pk')
         self.assertRedirects(respuesta, reverse('detalle', args=[auditoria.pk]))
         return auditoria
@@ -211,3 +214,79 @@ class AuditoriasTests(TestCase):
         self.assertTrue(Auditoria.objects.filter(pk=auditoria.pk).exists())
         self.assertRedirects(self.client.post(eliminar), reverse('listar'))
         self.assertFalse(Resultado.objects.filter(auditoria_id=auditoria.pk).exists())
+
+    @patch('productos.revision_publica.leer_pagina')
+    def test_crear_audita_con_solo_la_url_y_presenta_un_resumen(self, consultar):
+        portada = 'https://ejemplo.cl/'
+        politica = 'https://ejemplo.cl/privacidad/'
+        consultar.side_effect = [
+            Pagina(portada, '<a href="/privacidad/">Política de privacidad</a>', False),
+            Pagina(politica, (
+                '<h1>Política de privacidad</h1>'
+                '<p>Versión 2. Última actualización: 12 de octubre de 2026.</p>'
+                '<p>El plazo de conservación de los datos es de 30 días.</p>'
+                '<a href="mailto:privacidad@ejemplo.cl">Contacto de privacidad</a>'
+            ), False),
+        ]
+
+        self.entrar(self.usuaria)
+        self.assertContains(self.client.get(reverse('crear')), 'Auditar sitio')
+        respuesta = self.client.post(reverse('crear'), {'url': portada})
+        auditoria = Auditoria.objects.get(propietario=self.usuaria)
+        self.assertRedirects(respuesta, reverse('detalle', args=[auditoria.pk]))
+
+        def resultado(articulo):
+            return auditoria.resultados.get(articulo=articulo)
+
+        self.assertEqual(resultado('14 quinquies').estado, Resultado.Estado.CUMPLE)
+        self.assertEqual(resultado('3 g) y 14 ter a)').estado, Resultado.Estado.CUMPLE)
+        self.assertEqual(resultado('14 ter c)').estado, Resultado.Estado.CUMPLE)
+        self.assertEqual(resultado('14 ter i)').estado, Resultado.Estado.CUMPLE)
+        self.assertIn('30 días', resultado('14 ter i)').evidencia)
+        self.assertEqual(resultado('3 c), 14 d) y 14 quáter').estado, Resultado.Estado.NO_VERIFICABLE)
+        self.assertIn('https://ejemplo.cl/privacidad/', resultado('14 ter c)').evidencia)
+        self.assertNotIn('privacidad@ejemplo.cl', resultado('14 ter c)').evidencia)
+        reporte = self.client.get(reverse('reporte', args=[auditoria.pk]))
+        self.assertContains(reporte, 'Hay puntos pendientes.')
+        self.assertContains(reporte, 'se encontró una política de privacidad pública')
+        self.assertContains(reporte, 'Cumple: 4')
+
+    @patch('productos.revision_publica.leer_pagina', side_effect=PaginaInaccesible)
+    def test_pagina_inaccesible_genera_informe_sin_inventar_resultados(self, consultar):
+        self.entrar(self.usuaria)
+        respuesta = self.client.post(reverse('crear'), {'url': 'https://ejemplo.cl/'})
+        auditoria = Auditoria.objects.get(propietario=self.usuaria)
+        self.assertRedirects(respuesta, reverse('detalle', args=[auditoria.pk]))
+        self.assertTrue(auditoria.resumen_revision.startswith('No pudimos leer'))
+        self.assertFalse(auditoria.resultados.exclude(estado=Resultado.Estado.NO_VERIFICABLE).exists())
+
+    def test_aviso_explica_las_cookies_tecnicas(self):
+        aviso = self.client.get(reverse('privacidad'))
+        self.assertContains(aviso, 'sessionid')
+        self.assertContains(aviso, 'csrftoken')
+        self.assertContains(aviso, '14 días')
+        self.assertContains(aviso, '364 días')
+
+
+class RevisionPublicaTests(SimpleTestCase):
+    @patch('productos.revision_publica.leer_pagina')
+    def test_http_publico_y_enlace_externo_no_consultado(self, consultar):
+        consultar.return_value = Pagina('http://ejemplo.cl/', (
+            '<a href="https://otro.cl/privacidad">Política de privacidad</a>'
+            '<script>Política de privacidad. Versión 3.</script>'
+        ), False)
+        resultado = revisar_sitio('http://ejemplo.cl/')
+        consultar.assert_called_once_with('http://ejemplo.cl/', 'ejemplo.cl')
+        self.assertEqual(
+            resultado.hallazgos['Protección observable de la conexión']['estado'],
+            Resultado.Estado.NO_CUMPLE,
+        )
+        self.assertNotIn('Publicación y versión de la política', resultado.hallazgos)
+
+    @patch('productos.revision_publica.socket.create_connection')
+    @patch('productos.revision_publica.socket.getaddrinfo')
+    def test_destino_local_no_abre_una_conexion(self, resolver, conectar):
+        resolver.return_value = [(None, None, None, '', ('127.0.0.1', 80))]
+        resultado = revisar_sitio('http://ejemplo.cl/')
+        conectar.assert_not_called()
+        self.assertEqual(resultado.hallazgos, {})

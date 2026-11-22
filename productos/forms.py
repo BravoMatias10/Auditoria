@@ -17,17 +17,21 @@ class ProductoForm(forms.ModelForm):
 
 
 class AuditoriaForm(forms.ModelForm):
+    alcance = forms.CharField(
+        label="Nota de alcance (opcional)", required=False, max_length=1200,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        help_text="Añade una nota si necesitas contextualizar esta revisión.",
+    )
+
     class Meta:
         model = Auditoria
         fields = ['url', 'alcance']
         widgets = {
             'url': forms.URLInput(attrs={'placeholder': 'https://ejemplo.cl'}),
-            'alcance': forms.Textarea(attrs={'rows': 4}),
         }
         help_texts = {
             'url': 'Usa una dirección HTTP o HTTPS pública. Se omiten parámetros y fragmentos. '
                    'Evita rutas con identificadores personales.',
-            'alcance': 'Indica qué páginas o procesos revisarás y qué partes quedan fuera de la evaluación.',
         }
 
     def clean_url(self):
@@ -39,9 +43,11 @@ class AuditoriaForm(forms.ModelForm):
         return urlunsplit((url.scheme, url.netloc, url.path, '', ''))
 
 
-class AlcanceForm(AuditoriaForm):
-    class Meta(AuditoriaForm.Meta):
+class AlcanceForm(forms.ModelForm):
+    class Meta:
+        model = Auditoria
         fields = ['alcance']
+        widgets = {'alcance': forms.Textarea(attrs={'rows': 4})}
 
 
 class ResultadoForm(forms.ModelForm):

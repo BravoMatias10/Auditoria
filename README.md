@@ -1,6 +1,6 @@
 # Auditoría web de protección de datos personales
 
-Proyecto académico basado en `catalogo`. Permite evaluar manualmente un sitio web con 43 criterios de la Ley chilena N.º 19.628 modificada por la Ley N.º 21.719. Cada auditoría registra el alcance y cada resultado conserva su artículo, evidencia, observación, estado y acciones pendientes.
+Proyecto académico basado en `catalogo`. Consulta un sitio web y organiza los resultados según 43 criterios de la Ley chilena N.º 19.628 modificada por la Ley N.º 21.719. Cada auditoría registra el alcance y cada resultado conserva su artículo, evidencia, observación, estado y acciones pendientes.
 
 ## Ejecutar en local
 
@@ -45,10 +45,12 @@ El administrador gestiona cuentas y consulta todas las auditorías y sus reporte
 
 ## Evaluar, guardar y compartir
 
-1. Abre **Nueva auditoría**, registra una URL pública y anota qué páginas o procesos incluye la revisión. La aplicación prescinde de los parámetros y fragmentos de la dirección.
-2. Navega normalmente en las páginas públicas. Anota hechos observados, fecha y referencia por criterio. Si obtienes un documento o respuesta interna, registra una referencia y un extracto depurado. La aplicación guarda lo registrado y el auditor determina el estado.
-3. Los criterios comienzan en **No verificable**. Usa **Cumple** cuando el respaldo permita verificar el criterio, **No cumple** cuando la evidencia muestre un incumplimiento y **No aplica** cuando el criterio quede fuera del caso por una razón respaldada.
-4. Abre **Ver reporte**. Revisa alcance, resultados, evidencias y pendientes. Selecciona **Imprimir / Guardar como PDF**, elige **Guardar como PDF** y, si el navegador ofrece esa opción, desactiva los encabezados y pies automáticos. Puedes adjuntar el archivo desde tu cliente de correo.
+1. Abre **Nueva auditoría**, pega una URL pública y pulsa **Auditar sitio**.
+2. Lee el resumen. La aplicación comprueba si la página se sirve por HTTPS y busca enlaces públicos de privacidad del mismo dominio. Si encuentra una política, busca su fecha, versión, canal de privacidad y menciones a derechos, conservación y cookies.
+3. Revisa los estados por punto. **Cumple** significa que se pudo comprobar ese punto. **No cumple** indica un problema observado. **No verificable** significa que la revisión encontró una mención insuficiente, no pudo leer la página o requiere información interna. Puedes adjuntar una referencia depurada al criterio si consigues evidencia posterior. **No aplica** exige una justificación.
+4. Abre **Ver reporte** y selecciona **Imprimir / Guardar como PDF** para exportar el documento y adjuntarlo por correo.
+
+La revisión usa la biblioteca estándar de Python y sigue hasta dos enlaces HTML de privacidad del mismo dominio. Consulta HTTP o HTTPS en sus puertos habituales, valida la dirección en cada redirección y usa destinos públicos IPv4. Una página que dependa de JavaScript, un documento PDF, un destino IPv6 exclusivo o una sección con autenticación puede quedar sin verificar. Se guardan hallazgos resumidos y sus páginas de referencia.
 
 La vista se genera con los resultados guardados al momento de abrirla. Una copia de PDF exportada queda en manos de quien la guarda o comparte. El sistema limita el acceso a la vista original.
 
@@ -58,10 +60,10 @@ La vista se genera con los resultados guardados al momento de abrirla. Una copia
 |---|---|---|
 | Nombre de usuario, hash de contraseña, rol, estado de cuenta y fechas de alta y acceso | Cuenta provisionada por la administración. Autenticación y autorización. El panel de Django puede almacenar datos de contacto o nombre si el operador los ingresa. Mantén esos campos vacíos cuando sean innecesarios. | Hash estándar de Django y acceso administrativo restringido. |
 | Datos de sesión, cookie de sesión, token CSRF y actividad administrativa | Acceso autenticado, integridad de formularios y operaciones sobre cuentas en el panel de Django. | Sesiones de Django, protección CSRF y peticiones POST para cambios. La clave se toma del entorno si se configura o se genera para la ejecución. |
-| Propietario, URL, fechas, alcance, artículos, evidencia, observaciones y acciones | Información registrada por el auditor. Sirve para organizar la revisión y generar el reporte. | Aislamiento por propietario, acceso de consulta del administrador, campos acotados y confirmación para borrar. |
+| Propietario, URL, fechas, alcance, artículos, evidencia, observaciones y acciones | URL y notas del auditor, hallazgos resumidos de páginas públicas y evidencia adicional si se registra. Sirve para generar el reporte. | Aislamiento por propietario, acceso de consulta del administrador, campos acotados y confirmación para borrar. |
 | Reportes exportados | Datos de la auditoría seleccionada. | Vista autenticada y sin almacenamiento de PDF en el servidor. El reporte omite la identidad de la cuenta. El auditor debe revisar los campos libres para excluir identificadores antes de exportar. |
 
-El aviso público está en `/privacidad/`. Las variables `PRIVACIDAD_RESPONSABLE` y `PRIVACIDAD_CONTACTO` muestran la identidad y el canal configurados. Antes de usar datos reales, el responsable debe verificar y completar el aviso con representante cuando proceda, finalidades y bases, fuentes, destinatarios, seguridad y períodos de conservación efectivos y las menciones condicionadas del art. 14 ter.
+El aviso público está en `/privacidad/` y explica las cookies técnicas, su finalidad y su duración. Las variables `PRIVACIDAD_RESPONSABLE` y `PRIVACIDAD_CONTACTO` muestran la identidad y el canal configurados. Antes de usar datos reales, el responsable debe verificar y completar el aviso con representante cuando proceda, finalidades y bases, fuentes, destinatarios, seguridad y períodos de conservación efectivos y las menciones condicionadas del art. 14 ter.
 
 El responsable debe acreditar el inventario y sus bases, gestionar solicitudes con acuse y cómputo de plazos, documentar rectificaciones, supresión y bloqueo, mantener evidencia de prevención y contar con un protocolo de incidentes. Debe fijar plazos de cuentas, auditorías, registros del panel, sesiones, copias y respaldos. Django admite desactivar o eliminar cuentas en el panel y limpiar sesiones vencidas con `python manage.py clearsessions`. El borrado de una auditoría elimina sus resultados. El borrado de una cuenta elimina sus auditorías y resultados asociados. Revisa las obligaciones de conservación antes de borrar y gestiona aparte las copias compartidas.
 

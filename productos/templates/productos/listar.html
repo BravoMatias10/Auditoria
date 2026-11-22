@@ -4,7 +4,7 @@
 <div class="intro">
     <span class="kicker">{{ rol }}</span>
     <h1>{% if rol == 'Usuario' %}Mis auditorías{% else %}Auditorías{% endif %}</h1>
-    <p>Evalúa un sitio web, registra la evidencia por artículo y prepara un reporte con los resultados y las verificaciones pendientes.</p>
+    <p>Ingresa una URL para hacer una revisión automática de privacidad y obtener un reporte con los resultados y las verificaciones pendientes.</p>
     <div class="actions"><a class="button" href="{% url 'crear' %}">Nueva auditoría</a></div>
 </div>
 <section aria-label="Auditorías guardadas">

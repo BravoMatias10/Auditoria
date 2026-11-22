@@ -5,6 +5,10 @@
     <header class="intro">
         <p class="kicker no-print"><a href="{% url 'detalle' auditoria.pk %}">Volver a la auditoría</a></p>
         <h1>Reporte de auditoría</h1>
+        {% if auditoria.resumen_revision %}
+            <p><strong>{{ conclusion }}</strong> {{ auditoria.resumen_revision }}</p>
+            <p>«No verificable» indica que hizo falta información pública o evidencia interna. Cada estado se refiere al criterio indicado.</p>
+        {% endif %}
         <p>{{ auditoria.marco }}</p>
         {% if preparacion %}<p><strong>Evaluación de preparación para la reforma.</strong></p>{% endif %}
         <p>Evaluación académica respaldada por la evidencia registrada y limitada al alcance declarado. Verifica la vigencia del texto de referencia a la fecha de la auditoría.</p>
@@ -12,6 +16,7 @@
             <button class="button" type="button" onclick="window.print()">Imprimir / Guardar como PDF</button>
         </div>
         <p class="no-print">Revisa el contenido antes de exportar. Selecciona «Guardar como PDF» y adjunta el archivo al correo si corresponde.</p>
+        <p>{% for estado, total in totales %}{{ estado }}: {{ total }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
         <dl>
             <dt>Sitio evaluado</dt><dd>{{ auditoria.url }}</dd>
             <dt>Fecha de auditoría</dt><dd>{{ auditoria.creada|date:"d/m/Y H:i" }} (Chile continental)</dd>

@@ -11,6 +11,7 @@ from .criterios import (
 )
 from .forms import AlcanceForm, AuditoriaForm, ResultadoForm
 from .models import Auditoria, Resultado
+from .revision_publica import revisar_sitio
 
 
 def rol_de(user):
@@ -52,33 +53,52 @@ def crear(request):
         auditoria = form.save(commit=False)
         auditoria.propietario = request.user
         auditoria.marco = MARCO
+        revision = revisar_sitio(auditoria.url)
+        auditoria.resumen_revision = revision.resumen
+        if not auditoria.alcance:
+            auditoria.alcance = 'Consulta de la URL indicada y de sus enlaces públicos de privacidad.'
         with transaction.atomic():
             auditoria.save()
             Resultado.objects.bulk_create([
                 Resultado(
                     auditoria=auditoria, orden=orden, articulo=articulo,
                     criterio=criterio, fuente_requerida=fuente, guia=guia,
+                    **revision.hallazgos.get(criterio, {}),
                 )
                 for orden, (articulo, criterio, fuente, guia) in enumerate(CRITERIOS, start=1)
             ])
         return redirect('detalle', pk=auditoria.pk)
 
     return render(request, 'productos/formulario.html', {
-        'form': form, 'titulo': 'Nueva auditoría',
+        'form': form, 'titulo': 'Audita un sitio web', 'auditoria_nueva': True,
     })
+
+
+def contexto_resultados(auditoria):
+    resultados = sorted(auditoria.resultados.all(), key=lambda resultado: not resultado.evidencia)
+    conteo = {
+        estado: sum(resultado.estado == estado for resultado in resultados)
+        for estado in Resultado.Estado
+    }
+    if conteo[Resultado.Estado.NO_CUMPLE]:
+        conclusion = 'Se encontraron puntos que requieren corrección.'
+    elif conteo[Resultado.Estado.NO_VERIFICABLE]:
+        conclusion = 'Hay puntos pendientes. La revisión no permite confirmar el cumplimiento general.'
+    else:
+        conclusion = 'Los puntos aplicables fueron verificados dentro del alcance de la revisión.'
+    return {
+        'resultados': resultados,
+        'totales': [(estado.label, total) for estado, total in conteo.items()],
+        'conclusion': conclusion,
+    }
 
 
 @never_cache
 @login_required
 def detalle(request, pk):
     auditoria = auditoria_visible(request.user, pk)
-    resultados = list(auditoria.resultados.all())
-    totales = [
-        (estado.label, sum(resultado.estado == estado for resultado in resultados))
-        for estado in Resultado.Estado
-    ]
     return render(request, 'productos/detalle.html', {
-        'auditoria': auditoria, 'resultados': resultados, 'totales': totales,
+        'auditoria': auditoria, **contexto_resultados(auditoria),
         'editable': auditoria.propietario_id == request.user.pk,
     })
 
@@ -128,7 +148,7 @@ def eliminar(request, pk):
 def reporte(request, pk):
     auditoria = auditoria_visible(request.user, pk)
     return render(request, 'productos/reporte.html', {
-        'auditoria': auditoria, 'resultados': auditoria.resultados.all(),
+        'auditoria': auditoria, **contexto_resultados(auditoria),
         'ley_consolidada': LEY_CONSOLIDADA, 'diario_oficial': DIARIO_OFICIAL,
         'preparacion': timezone.localdate(auditoria.creada) < VIGENCIA_DE_REFERENCIA,
     })
@@ -139,4 +159,8 @@ def privacidad(request):
         'responsable': settings.PRIVACIDAD_RESPONSABLE,
         'contacto': settings.PRIVACIDAD_CONTACTO,
         'fecha_corte': FECHA_CORTE,
+        'cookie_sesion': settings.SESSION_COOKIE_NAME,
+        'dias_sesion': settings.SESSION_COOKIE_AGE // 86400,
+        'cookie_csrf': settings.CSRF_COOKIE_NAME,
+        'dias_csrf': settings.CSRF_COOKIE_AGE // 86400,
     })

@@ -5,6 +5,7 @@
     <div class="intro">
         {% if resultado %}<p class="kicker">Art. {{ resultado.articulo }}</p>{% endif %}
         <h1>{{ titulo }}</h1>
+        {% if auditoria_nueva %}<p>Ingresa la URL. La aplicación revisará lo que está publicado y preparará los resultados.</p>{% endif %}
         {% if resultado %}
             <p>{{ resultado.guia }}</p>
             <p><strong>Evidencia esperada:</strong> {{ resultado.get_fuente_requerida_display }}.</p>
@@ -22,7 +23,7 @@
         </div>
         {% endfor %}
         <div class="actions">
-            <button class="button" type="submit">Guardar</button>
+            <button class="button" type="submit">{% if auditoria_nueva %}Auditar sitio{% else %}Guardar{% endif %}</button>
             {% if auditoria %}
                 <a class="button secondary" href="{% url 'detalle' auditoria.pk %}{% if resultado %}#criterio-{{ resultado.pk }}{% endif %}">Cancelar</a>
             {% else %}

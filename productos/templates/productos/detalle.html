@@ -4,6 +4,10 @@
 <div class="intro">
     <p class="kicker"><a href="{% url 'listar' %}">Auditorías</a> / {{ auditoria.creada|date:"d/m/Y" }}</p>
     <h1>{{ auditoria.url }}</h1>
+    {% if auditoria.resumen_revision %}
+        <p><strong>{{ conclusion }}</strong> {{ auditoria.resumen_revision }}</p>
+        <p>Los resultados se refieren a cada punto revisado. «No verificable» significa que la información pública no bastó o que hace falta evidencia interna.</p>
+    {% endif %}
     <p>{{ auditoria.alcance|linebreaksbr }}</p>
     <div class="actions">
         <a class="button" href="{% url 'reporte' auditoria.pk %}">Ver reporte</a>
@@ -27,7 +31,7 @@
             <div>
                 <p class="kicker">Art. {{ resultado.articulo }} · {{ resultado.get_fuente_requerida_display }}</p>
                 <h3>{{ resultado.criterio }}</h3>
-                <p>{{ resultado.guia }}</p>
+                {% if resultado.evidencia %}<details><summary>Qué revisa este criterio</summary><p>{{ resultado.guia }}</p></details>{% else %}<p>{{ resultado.guia }}</p>{% endif %}
                 {% if resultado.evidencia %}<p><strong>Evidencia:</strong> {{ resultado.evidencia|linebreaksbr }}</p>{% endif %}
                 {% if resultado.observacion %}<p><strong>Observación:</strong> {{ resultado.observacion|linebreaksbr }}</p>{% endif %}
                 {% if resultado.pendiente %}<p><strong>Acción pendiente:</strong> {{ resultado.pendiente|linebreaksbr }}</p>{% endif %}

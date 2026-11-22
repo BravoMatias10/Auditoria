@@ -18,6 +18,7 @@ class Auditoria(models.Model):
     alcance = models.CharField('alcance de la revisión', max_length=1200)
     creada = models.DateTimeField(auto_now_add=True)
     marco = models.CharField(max_length=280)
+    resumen_revision = models.CharField(max_length=350, blank=True)
 
     class Meta:
         ordering = ('-creada', '-pk')

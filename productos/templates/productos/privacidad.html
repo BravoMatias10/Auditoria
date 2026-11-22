@@ -3,7 +3,7 @@
 {% block content %}
 <article class="narrow policy">
     <div class="intro">
-        <p class="kicker">Versión 1 · {{ fecha_corte }}</p>
+        <p class="kicker">Versión 2 · {{ fecha_corte }}</p>
         <h1>Privacidad y derechos</h1>
         <p>Información sobre el tratamiento en el piloto académico de auditoría de sitios web.</p>
     </div>
@@ -16,9 +16,11 @@
     <h2>Datos tratados y finalidad</h2>
     <ul>
         <li>La administración crea las cuentas y asigna el rol. Django guarda el nombre de usuario, el hash de la contraseña, el rol y las fechas de alta y último inicio de sesión.</li>
-        <li>La aplicación utiliza cookies de sesión y protección CSRF para gestionar el acceso y proteger formularios.</li>
+        <li><code>{{ cookie_sesion }}</code> mantiene tu sesión iniciada. Su duración configurada es de {{ dias_sesion }} días y se retira al cerrar sesión.</li>
+        <li><code>{{ cookie_csrf }}</code> ayuda a evitar envíos de formularios en tu nombre. Su duración configurada es de {{ dias_csrf }} días.</li>
         <li>Los usuarios registran la URL, alcance, fecha y evidencia de los sitios evaluados. El reporte se genera a partir de los resultados guardados y omite el identificador de la cuenta.</li>
     </ul>
+    <p>La revisión automática consulta las páginas públicas indicadas sin usar tu sesión de Django en el sitio evaluado. Guarda hallazgos resumidos y sus páginas de referencia.</p>
     <p>Ingresa evidencia depurada. Evita datos personales de terceros, credenciales y archivos con identificadores.</p>
     <h2>Acceso, conservación y seguridad</h2>
     <p>El usuario accede a sus auditorías y la administración puede consultarlas. Django comprueba permisos al abrir cada registro y reporte. Las exportaciones se guardan donde decida el usuario y las copias compartidas requieren gestión propia.</p>
