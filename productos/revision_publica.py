@@ -26,6 +26,8 @@ class Pagina:
     url: str
     html: str
     hsts: bool
+    estado_http: int = 200
+    aviso: str = ""
 
 
 @dataclass
@@ -112,7 +114,7 @@ def direccion_publica(host, puerto):
         ip = IPv4Address(direccion[4][0])
         if ip.is_global and not ip.is_multicast and not ip.is_reserved:
             return str(ip)
-    raise PaginaInaccesible
+    raise PaginaInaccesible("La dirección apunta a una red local o no tiene un destino público IPv4.")
 
 
 def conexion_http(host, puerto, contexto_tls):
@@ -130,12 +132,27 @@ def conexion_http(host, puerto, contexto_tls):
     return cliente
 
 
+def motivo_fallo(error):
+    if isinstance(error, PaginaInaccesible):
+        return str(error)
+    if isinstance(error, socket.gaierror):
+        return 'No se encontró el dominio. Revisa cómo escribiste la dirección.'
+    if isinstance(error, ssl.SSLError):
+        return 'No se pudo verificar la conexión segura (HTTPS).'
+    if isinstance(error, TimeoutError):
+        return 'El sitio tardó demasiado en responder.'
+    if isinstance(error, OSError):
+        return 'La aplicación no pudo conectarse al sitio desde esta red.'
+    return 'La respuesta del sitio no se pudo leer.'
+
+
 def leer_pagina(url, dominio):
+    ultima_respuesta = None
     try:
         for _ in range(LIMITE_REDIRECCIONES + 1):
             url, host, puerto = direccion_normalizada(url)
             if host.removeprefix('www.') != dominio:
-                raise PaginaInaccesible
+                raise PaginaInaccesible('El sitio redirigió a otro dominio. Esa página quedó fuera de esta revisión.')
             es_https = urlsplit(url).scheme == 'https'
             contexto = ssl.create_default_context() if es_https else None
             cliente = conexion_http(host, puerto, contexto)
@@ -146,23 +163,37 @@ def leer_pagina(url, dominio):
                     'Connection': 'close',
                 })
                 with cliente.getresponse() as respuesta:
-                    if respuesta.status in REDIRECCIONES and respuesta.getheader('Location'):
-                        url = urljoin(url, respuesta.getheader('Location'))
+                    pagina = Pagina(
+                        url, '', bool(respuesta.getheader('Strict-Transport-Security')), respuesta.status,
+                    )
+                    ultima_respuesta = pagina
+                    destino = respuesta.getheader('Location')
+                    if respuesta.status in REDIRECCIONES and destino:
+                        url = urljoin(url, destino)
                         continue
-                    tipo = respuesta.headers.get_content_type()
-                    if respuesta.status != 200 or tipo not in ('text/html', 'application/xhtml+xml'):
-                        raise PaginaInaccesible
-                    contenido = respuesta.read(LIMITE_BYTES + 1)
-                    if len(contenido) > LIMITE_BYTES:
-                        raise PaginaInaccesible
-                    charset = respuesta.headers.get_content_charset() or 'utf-8'
-                    html = contenido.decode(charset, errors='replace')
-                    return Pagina(url, html, bool(respuesta.getheader('Strict-Transport-Security')))
+                    if respuesta.status != 200:
+                        pagina.aviso = (
+                            f'El sitio respondió con el código {respuesta.status}. '
+                            'No se pudo leer una página pública en esa respuesta.'
+                        )
+                    elif respuesta.headers.get_content_type() not in ('text/html', 'application/xhtml+xml'):
+                        pagina.aviso = 'La dirección devolvió un archivo u otro contenido distinto de una página web.'
+                    else:
+                        contenido = respuesta.read(LIMITE_BYTES + 1)
+                        charset = respuesta.headers.get_content_charset() or 'utf-8'
+                        pagina.html = contenido[:LIMITE_BYTES].decode(charset, errors='replace')
+                        if len(contenido) > LIMITE_BYTES:
+                            pagina.aviso = 'La página es extensa. Solo se revisó la parte inicial.'
+                    return pagina
             finally:
                 cliente.close()
-    except (OSError, HTTPException, UnicodeError, ValueError, LookupError) as error:
-        raise PaginaInaccesible from error
-    raise PaginaInaccesible
+        raise PaginaInaccesible('La página hizo demasiadas redirecciones.')
+    except (PaginaInaccesible, OSError, HTTPException, ValueError, LookupError) as error:
+        motivo = motivo_fallo(error)
+        if ultima_respuesta is not None:
+            ultima_respuesta.aviso = motivo
+            return ultima_respuesta
+        raise PaginaInaccesible(motivo) from error
 
 
 def es_enlace_privacidad(href, etiqueta):
@@ -173,7 +204,7 @@ def es_enlace_privacidad(href, etiqueta):
 def paginas_privacidad(pagina, contenido, dominio):
     visitadas = {pagina.url}
     intentos = 0
-    if es_enlace_privacidad(pagina.url, '') and any(
+    if not pagina.aviso and es_enlace_privacidad(pagina.url, '') and any(
         senal in contenido.contenido for senal in SENALES_PRIVACIDAD
     ):
         yield pagina, contenido
@@ -193,7 +224,7 @@ def paginas_privacidad(pagina, contenido, dominio):
         except (PaginaInaccesible, ValueError):
             continue
         contenido_politica = ContenidoPublico(politica.html)
-        if any(senal in contenido_politica.contenido for senal in SENALES_PRIVACIDAD):
+        if not politica.aviso and any(senal in contenido_politica.contenido for senal in SENALES_PRIVACIDAD):
             yield politica, contenido_politica
 
 
@@ -279,21 +310,30 @@ def revisar_sitio(url):
         url, host, _ = direccion_normalizada(url)
         dominio = host.removeprefix('www.')
         pagina = leer_pagina(url, dominio)
-    except PaginaInaccesible:
-        return Revision(
-            'No pudimos leer la página indicada. Comprueba que abre públicamente y que la URL es correcta.',
-            {},
-        )
+    except PaginaInaccesible as error:
+        causa = str(error) or 'Comprueba que abre públicamente y que la URL es correcta.'
+        return Revision(f'No pudimos leer la página indicada. {causa}', {})
 
     es_https = urlsplit(pagina.url).scheme == 'https'
-    conexion = 'La página revisada cargó con HTTPS.' if es_https else 'La página revisada cargó con HTTP.'
+    if es_https:
+        estado = Resultado.Estado.CUMPLE
+        conexion = 'La dirección respondió con HTTPS.' if pagina.aviso else 'La página revisada cargó con HTTPS.'
+        pendiente = ''
+    elif pagina.estado_http == 200:
+        estado = Resultado.Estado.NO_CUMPLE
+        conexion = 'La página revisada cargó con HTTP.'
+        pendiente = 'Comprobar que la página redirija a HTTPS.'
+    else:
+        estado = Resultado.Estado.NO_VERIFICABLE
+        conexion = 'Se observó una respuesta HTTP, pero no se pudo confirmar la conexión de la página de destino.'
+        pendiente = 'Comprobar si la página de destino usa HTTPS.'
     resultados = {
         'Protección observable de la conexión': hallazgo(
             pagina.url,
             conexion + (' La respuesta anuncia HSTS.' if es_https and pagina.hsts else ''),
-            'Este resultado se refiere a la conexión de la página consultada.',
-            Resultado.Estado.CUMPLE if es_https else Resultado.Estado.NO_CUMPLE,
-            '' if es_https else 'Comprobar que la página redirija a HTTPS.',
+            'Este resultado se refiere a la respuesta observada en la dirección indicada.',
+            estado,
+            pendiente,
         )
     }
 
@@ -306,8 +346,10 @@ def revisar_sitio(url):
 
     if politica_encontrada:
         resumen = 'Se revisó la página indicada y se encontró una política de privacidad pública.'
+    elif pagina.html:
+        resumen = 'No encontramos una política de privacidad en los enlaces que pudimos leer.'
     else:
-        resumen = (
-            'Se revisó la página indicada. No encontramos una política de privacidad en los enlaces que pudimos leer.'
-        )
+        resumen = 'Se pudo comprobar la respuesta del sitio. La información de privacidad quedó pendiente.'
+    if pagina.aviso:
+        resumen = f'{pagina.aviso} {resumen}'
     return Revision(resumen, resultados)

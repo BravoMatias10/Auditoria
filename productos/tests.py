@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from unittest.mock import patch
+from email.message import Message
+from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import Group, User
 from django.test import Client, SimpleTestCase, TestCase
@@ -7,7 +8,7 @@ from django.urls import reverse
 
 from .criterios import CRITERIOS
 from .models import Auditoria, Resultado
-from .revision_publica import Pagina, PaginaInaccesible, Revision, revisar_sitio
+from .revision_publica import LIMITE_BYTES, Pagina, PaginaInaccesible, Revision, revisar_sitio
 
 
 class AuditoriasTests(TestCase):
@@ -290,3 +291,55 @@ class RevisionPublicaTests(SimpleTestCase):
         resultado = revisar_sitio('http://ejemplo.cl/')
         conectar.assert_not_called()
         self.assertEqual(resultado.hallazgos, {})
+
+    def respuesta_http(self, conexion, estado, contenido=b'', **cabeceras):
+        respuesta = MagicMock()
+        respuesta.status = estado
+        respuesta.headers = Message()
+        respuesta.headers['Content-Type'] = 'text/html; charset=utf-8'
+        for nombre, valor in cabeceras.items():
+            respuesta.headers[nombre.replace('_', '-')] = valor
+        respuesta.getheader.side_effect = respuesta.headers.get
+        respuesta.read.return_value = contenido
+        conexion.return_value.getresponse.return_value.__enter__.return_value = respuesta
+        return respuesta
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_pagina_extensa_conserva_el_hallazgo_https(self, conexion):
+        respuesta = self.respuesta_http(conexion, 200, b'a' * (LIMITE_BYTES + 1))
+        revision = revisar_sitio('https://ejemplo.cl/')
+        respuesta.read.assert_called_once_with(LIMITE_BYTES + 1)
+        self.assertIn('Solo se revisó la parte inicial', revision.resumen)
+        conexion_observada = revision.hallazgos['Protección observable de la conexión']
+        self.assertEqual(conexion_observada['estado'], Resultado.Estado.CUMPLE)
+        self.assertIn('respondió con HTTPS', conexion_observada['evidencia'])
+        self.assertNotIn('Publicación y versión de la política', revision.hallazgos)
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_redireccion_a_otro_dominio_conserva_respuesta_inicial(self, conexion):
+        self.respuesta_http(conexion, 302, Location='https://otro.cl/consentimiento')
+        revision = revisar_sitio('https://ejemplo.cl/')
+        self.assertIn('redirigió a otro dominio', revision.resumen)
+        conexion.assert_called_once()
+        self.assertEqual(
+            revision.hallazgos['Protección observable de la conexión']['estado'],
+            Resultado.Estado.CUMPLE,
+        )
+
+    @patch('productos.revision_publica.conexion_http')
+    def test_respuesta_403_deja_una_explicacion_y_conexion_https(self, conexion):
+        respuesta = self.respuesta_http(conexion, 403)
+        revision = revisar_sitio('https://ejemplo.cl/')
+        respuesta.read.assert_not_called()
+        self.assertIn('código 403', revision.resumen)
+        self.assertEqual(len(revision.hallazgos), 1)
+        self.assertEqual(
+            revision.hallazgos['Protección observable de la conexión']['estado'],
+            Resultado.Estado.CUMPLE,
+        )
+
+    @patch('productos.revision_publica.conexion_http', side_effect=ConnectionRefusedError)
+    def test_conexion_rechazada_informa_fallo_de_red_sin_hallazgos(self, conexion):
+        revision = revisar_sitio('https://ejemplo.cl/')
+        self.assertIn('no pudo conectarse al sitio desde esta red', revision.resumen)
+        self.assertEqual(revision.hallazgos, {})
