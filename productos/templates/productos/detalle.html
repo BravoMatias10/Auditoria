@@ -1,0 +1,44 @@
+{% extends 'productos/base.html' %}
+{% block title %}Detalle de auditoría · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="intro">
+    <p class="kicker"><a href="{% url 'listar' %}">Auditorías</a> / {{ auditoria.creada|date:"d/m/Y" }}</p>
+    <h1>{{ auditoria.url }}</h1>
+    <p>{{ auditoria.alcance|linebreaksbr }}</p>
+    <div class="actions">
+        <a class="button" href="{% url 'reporte' auditoria.pk %}">Ver reporte</a>
+        {% if editable %}
+            <a class="button secondary" href="{% url 'editar' auditoria.pk %}">Editar alcance</a>
+            <a href="{% url 'eliminar' auditoria.pk %}">Eliminar auditoría</a>
+        {% endif %}
+    </div>
+</div>
+<div class="stats" aria-label="Resultados por estado">
+    {% for estado, total in totales %}
+        <div class="stat"><strong>{{ total }}</strong>{{ estado }}</div>
+    {% endfor %}
+</div>
+<section aria-labelledby="criterios">
+    <h2 id="criterios">Criterios de evaluación</h2>
+    <p class="muted">{{ auditoria.marco }}</p>
+    <div class="rows">
+        {% for resultado in resultados %}
+        <article class="row" id="criterio-{{ resultado.pk }}">
+            <div>
+                <p class="kicker">Art. {{ resultado.articulo }} · {{ resultado.get_fuente_requerida_display }}</p>
+                <h3>{{ resultado.criterio }}</h3>
+                <p>{{ resultado.guia }}</p>
+                {% if resultado.evidencia %}<p><strong>Evidencia:</strong> {{ resultado.evidencia|linebreaksbr }}</p>{% endif %}
+                {% if resultado.observacion %}<p><strong>Observación:</strong> {{ resultado.observacion|linebreaksbr }}</p>{% endif %}
+                {% if resultado.pendiente %}<p><strong>Acción pendiente:</strong> {{ resultado.pendiente|linebreaksbr }}</p>{% endif %}
+            </div>
+            <span class="status {{ resultado.estado }}">{{ resultado.get_estado_display }}</span>
+            {% if editable %}
+                <a class="button secondary" href="{% url 'editar_resultado' auditoria.pk resultado.pk %}"
+                   aria-label="Editar resultado: {{ resultado.criterio }}">Editar</a>
+            {% endif %}
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

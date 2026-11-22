@@ -1,0 +1,53 @@
+{% extends 'productos/base.html' %}
+{% block title %}Reporte de auditoría · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="report">
+    <header class="intro">
+        <p class="kicker no-print"><a href="{% url 'detalle' auditoria.pk %}">Volver a la auditoría</a></p>
+        <h1>Reporte de auditoría</h1>
+        <p>{{ auditoria.marco }}</p>
+        {% if preparacion %}<p><strong>Evaluación de preparación para la reforma.</strong></p>{% endif %}
+        <p>Evaluación académica respaldada por la evidencia registrada y limitada al alcance declarado. Verifica la vigencia del texto de referencia a la fecha de la auditoría.</p>
+        <div class="actions no-print">
+            <button class="button" type="button" onclick="window.print()">Imprimir / Guardar como PDF</button>
+        </div>
+        <p class="no-print">Revisa el contenido antes de exportar. Selecciona «Guardar como PDF» y adjunta el archivo al correo si corresponde.</p>
+        <dl>
+            <dt>Sitio evaluado</dt><dd>{{ auditoria.url }}</dd>
+            <dt>Fecha de auditoría</dt><dd>{{ auditoria.creada|date:"d/m/Y H:i" }} (Chile continental)</dd>
+            <dt>Alcance</dt><dd>{{ auditoria.alcance|linebreaksbr }}</dd>
+        </dl>
+    </header>
+    <section aria-labelledby="resultados">
+        <h2 id="resultados">Resultados por criterio</h2>
+        {% for resultado in resultados %}
+        <article class="report-item">
+            <p class="kicker">Art. {{ resultado.articulo }} · {{ resultado.get_fuente_requerida_display }}</p>
+            <h3>{{ resultado.criterio }}</h3>
+            <span class="status {{ resultado.estado }}">{{ resultado.get_estado_display }}</span>
+            <dl>
+                <dt>Evidencia</dt>
+                <dd>
+                    {% if resultado.evidencia %}
+                        {{ resultado.get_fuente_display }}. {{ resultado.evidencia|linebreaksbr }}
+                        <span class="muted"> (Registro actualizado el {{ resultado.actualizado|date:"d/m/Y" }}.)</span>
+                    {% else %}Pendiente de aportar.{% endif %}
+                </dd>
+                <dt>Observación</dt>
+                <dd>{{ resultado.observacion|default:"Sin observación registrada."|linebreaksbr }}</dd>
+                {% if resultado.pendiente or resultado.estado == 'no_verificable' or resultado.estado == 'no_cumple' %}
+                <dt>Acción pendiente</dt>
+                <dd>
+                    {% if resultado.pendiente %}{{ resultado.pendiente|linebreaksbr }}
+                    {% elif resultado.estado == 'no_cumple' %}Definir y verificar una acción correctiva.
+                    {% else %}{{ resultado.guia }}{% endif %}
+                </dd>
+                {% endif %}
+            </dl>
+        </article>
+        {% endfor %}
+    </section>
+    <p>Fuentes oficiales: <a href="{{ ley_consolidada }}">Ley N.º 19.628 en LeyChile</a> y
+        <a href="{{ diario_oficial }}">Ley N.º 21.719 en el Diario Oficial</a>.</p>
+</div>
+{% endblock %}

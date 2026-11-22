@@ -1,0 +1,30 @@
+{% extends 'productos/base.html' %}
+{% block title %}Privacidad y derechos · Auditoría de datos{% endblock %}
+{% block content %}
+<article class="narrow policy">
+    <div class="intro">
+        <p class="kicker">Versión 1 · {{ fecha_corte }}</p>
+        <h1>Privacidad y derechos</h1>
+        <p>Información sobre el tratamiento en el piloto académico de auditoría de sitios web.</p>
+    </div>
+    <h2>Responsable y contacto</h2>
+    {% if responsable and contacto %}
+        <p>Responsable: {{ responsable }}. Canal de privacidad: {{ contacto }}.</p>
+    {% else %}
+        <p>La identidad del responsable y su canal de privacidad están pendientes de configurar. Usa exclusivamente cuentas y evidencias ficticias en esta configuración.</p>
+    {% endif %}
+    <h2>Datos tratados y finalidad</h2>
+    <ul>
+        <li>La administración crea las cuentas y asigna el rol. Django guarda el nombre de usuario, el hash de la contraseña, el rol y las fechas de alta y último inicio de sesión.</li>
+        <li>La aplicación utiliza cookies de sesión y protección CSRF para gestionar el acceso y proteger formularios.</li>
+        <li>Los usuarios registran la URL, alcance, fecha y evidencia de los sitios evaluados. El reporte se genera a partir de los resultados guardados y omite el identificador de la cuenta.</li>
+    </ul>
+    <p>Ingresa evidencia depurada. Evita datos personales de terceros, credenciales y archivos con identificadores.</p>
+    <h2>Acceso, conservación y seguridad</h2>
+    <p>El usuario accede a sus auditorías y la administración puede consultarlas. Django comprueba permisos al abrir cada registro y reporte. Las exportaciones se guardan donde decida el usuario y las copias compartidas requieren gestión propia.</p>
+    <p>Antes de habilitar cuentas reales, el responsable debe completar las finalidades y bases jurídicas, los destinatarios, los plazos efectivos por tipo de dato y las medidas del entorno.</p>
+    <h2>Tus derechos</h2>
+    <p>Conforme al régimen aplicable puedes solicitar acceso, rectificación, supresión, oposición, bloqueo o portabilidad, según corresponda. Usa el canal de privacidad con el derecho que solicitas y un medio para recibir respuesta. Facilita la acreditación de identidad por el procedimiento que te indique el responsable.</p>
+    <p>Una vez vigente la reforma, puedes recurrir ante la Agencia de Protección de Datos Personales en los supuestos previstos si se rechaza la solicitud o falta una respuesta oportuna.</p>
+</article>
+{% endblock %}

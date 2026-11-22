@@ -1,0 +1,25 @@
+{% extends 'productos/base.html' %}
+{% block title %}Auditorías · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="intro">
+    <span class="kicker">{{ rol }}</span>
+    <h1>{% if rol == 'Usuario' %}Mis auditorías{% else %}Auditorías{% endif %}</h1>
+    <p>Evalúa un sitio web, registra la evidencia por artículo y prepara un reporte con los resultados y las verificaciones pendientes.</p>
+    <div class="actions"><a class="button" href="{% url 'crear' %}">Nueva auditoría</a></div>
+</div>
+<section aria-label="Auditorías guardadas">
+    <div class="rows">
+        {% for auditoria in auditorias %}
+        <article class="row">
+            <div>
+                <h2><a href="{% url 'detalle' auditoria.pk %}">{{ auditoria.url }}</a></h2>
+                <p class="muted">{{ auditoria.creada|date:"d/m/Y H:i" }} · {{ auditoria.alcance|truncatechars:145 }}</p>
+            </div>
+            <a class="button secondary" href="{% url 'detalle' auditoria.pk %}">Ver auditoría</a>
+        </article>
+        {% empty %}
+        <div class="panel"><p>Todavía no hay auditorías. Crea una para comenzar la evaluación.</p></div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

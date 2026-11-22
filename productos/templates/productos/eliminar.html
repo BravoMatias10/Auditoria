@@ -1,0 +1,15 @@
+{% extends 'productos/base.html' %}
+{% block title %}Eliminar auditoría · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="narrow">
+    <div class="intro">
+        <h1>Eliminar auditoría</h1>
+        <p>Se eliminarán la auditoría de {{ auditoria.url }} y sus resultados guardados. Las copias de PDF se gestionan donde fueron guardadas o compartidas.</p>
+    </div>
+    <form method="post" class="panel actions">
+        {% csrf_token %}
+        <button class="button" type="submit">Eliminar auditoría</button>
+        <a class="button secondary" href="{% url 'detalle' auditoria.pk %}">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

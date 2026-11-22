@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Auditoría de datos{% endblock %}</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --ink: #202020;
+            --subtle: #4d4d4d;
+            --line: #dfdcd6;
+            --panel: #f4f3f0;
+            --paper: #fdfcf9;
+            --accent: #ff682c;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; color: var(--ink); background: var(--paper); font: 1rem/1.55 system-ui, sans-serif; }
+        a { color: inherit; text-underline-offset: .2em; text-decoration-color: #ac3d16; }
+        :focus-visible { outline: 2px solid #ac3d16; outline-offset: 3px; }
+        .wrap { max-width: 1160px; margin-inline: auto; padding-inline: clamp(16px, 4vw, 44px); }
+        .site-header { border-bottom: 1px solid var(--line); background: white; }
+        .site-header .wrap, .site-footer .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 16px; }
+        .wordmark { text-decoration: none; font-weight: 650; }
+        .wordmark::before { content: ''; display: inline-block; width: .57rem; height: .57rem; margin-right: .55rem; background: var(--accent); }
+        .nav, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .nav a { padding: 6px 14px; border-radius: 100px; background: var(--panel); text-decoration: none; }
+        .nav a:hover { text-decoration: underline; }
+        .inline { display: inline; margin: 0; }
+        main { min-height: 64vh; padding-block: clamp(28px, 6vw, 70px); }
+        .site-footer { border-top: 1px solid var(--line); color: var(--subtle); font-size: .875rem; }
+        h1, h2, h3, p { margin: 0; }
+        h1 { font-size: clamp(2rem, 6vw, 3.8rem); line-height: 1.09; letter-spacing: -.045em; font-weight: 450; overflow-wrap: anywhere; }
+        h2 { font-size: clamp(1.3rem, 3vw, 1.8rem); letter-spacing: -.02em; font-weight: 550; line-height: 1.25; }
+        h3 { font-size: 1.125rem; font-weight: 600; line-height: 1.35; }
+        p + p { margin-top: .75rem; }
+        .intro { display: grid; gap: 14px; margin-bottom: 32px; }
+        .intro p { max-width: 76ch; color: var(--subtle); }
+        .kicker { color: var(--subtle); font-size: .875rem; }
+        .muted { color: var(--subtle); }
+        .narrow { max-width: 680px; }
+        .panel { background: var(--panel); padding: clamp(18px, 4vw, 34px); border: 1px solid var(--line); border-radius: 8px 0 0 0; }
+        .button { display: inline-block; border: 1px solid var(--ink); border-radius: 0; padding: .57rem .9rem; background: var(--ink); color: white; font: inherit; cursor: pointer; text-decoration: none; }
+        .button:hover { background: #3c3c3c; color: white; }
+        .button.secondary { background: transparent; color: var(--ink); }
+        .button.secondary:hover { background: #ece9e3; }
+        .rows { display: grid; gap: 12px; margin-block: 16px; }
+        .row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px; border: 1px solid var(--line); background: white; }
+        .row > div { flex: 1 1 310px; min-width: 0; }
+        .row h2 { font-size: 1.15rem; }
+        .row p, dd, .site-url { overflow-wrap: anywhere; }
+        .row p { margin-top: .35rem; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 10px; margin: 24px 0 34px; }
+        .stat { padding: 14px 18px; background: var(--panel); border-top: 2px solid var(--line); }
+        .stat strong { display: block; font-size: 1.8rem; font-weight: 500; }
+        .status { display: inline-block; border-radius: 100px; border: 1px solid #c7c2ba; padding: .12rem .65rem; font-size: .875rem; background: var(--panel); }
+        .status.no_cumple { border-color: #ad573d; background: #fff0e9; }
+        .status.cumple { border-color: #71675a; background: #eeebe2; }
+        .field { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; }
+        input, select, textarea { width: 100%; padding: .55rem .7rem; border: 1px solid #8a837a; border-radius: 0; color: var(--ink); background: white; font: inherit; }
+        textarea { resize: vertical; }
+        .help { margin-top: .4rem; font-size: .9rem; color: var(--subtle); }
+        .errorlist { color: #8b280b; margin: .4rem 0; padding-left: 1.3rem; }
+        .policy h2 { margin-block: 24px 8px; }
+        .policy ul { padding-inline-start: 1.25rem; }
+        .report { font-size: .95rem; }
+        .report dl { margin: 16px 0 0; display: grid; grid-template-columns: minmax(100px, 135px) 1fr; gap: 3px 12px; }
+        .report dt { font-weight: 600; }
+        .report dd { margin: 0; }
+        .report-item { border-top: 1px solid var(--line); padding: 16px 0; }
+        .report-item h3 { margin: 5px 0; }
+        @media (max-width: 520px) {
+            .report dl { display: block; }
+            .report dd { margin-bottom: 6px; }
+            .panel { padding: 16px; }
+        }
+        @media print {
+            @page { size: A4; margin: 15mm; }
+            body { background: #fff; color: #000; font-size: 10pt; }
+            .site-header, .site-footer, .no-print { display: none !important; }
+            main.wrap { max-width: none; min-height: 0; padding: 0; }
+            .report { font-size: 10pt; }
+            .report h1 { font-size: 24pt; }
+            .report h2, .report h3 { break-after: avoid; }
+            .report .intro { margin-bottom: 15pt; gap: 6pt; }
+            .report-item { break-inside: avoid; padding-block: 7pt; }
+            .report .status { background: transparent; border-color: #777; }
+        }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <div class="wrap">
+            <a class="wordmark" href="{% url 'listar' %}">Auditoría de datos</a>
+            <nav class="nav" aria-label="Navegación principal">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'listar' %}">Auditorías</a>
+                    {% if user.is_superuser %}<a href="{% url 'admin:index' %}">Administración</a>{% endif %}
+                    <form class="inline" method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button class="button secondary" type="submit">Cerrar sesión</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}">Iniciar sesión</a>
+                {% endif %}
+            </nav>
+        </div>
+    </header>
+    <main class="wrap" id="contenido">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        <div class="wrap">
+            <span>Proyecto académico · Ley N.º 21.719</span>
+            <a href="{% url 'privacidad' %}">Privacidad y derechos</a>
+        </div>
+    </footer>
+</body>
+</html>

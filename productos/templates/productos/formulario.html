@@ -1,0 +1,34 @@
+{% extends 'productos/base.html' %}
+{% block title %}{{ titulo }} · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="narrow">
+    <div class="intro">
+        {% if resultado %}<p class="kicker">Art. {{ resultado.articulo }}</p>{% endif %}
+        <h1>{{ titulo }}</h1>
+        {% if resultado %}
+            <p>{{ resultado.guia }}</p>
+            <p><strong>Evidencia esperada:</strong> {{ resultado.get_fuente_requerida_display }}.</p>
+        {% endif %}
+    </div>
+    <form method="post" class="panel">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for campo in form %}
+        <div class="field">
+            {{ campo.label_tag }}
+            {{ campo }}
+            {{ campo.errors }}
+            {% if campo.help_text %}<p class="help">{{ campo.help_text }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="actions">
+            <button class="button" type="submit">Guardar</button>
+            {% if auditoria %}
+                <a class="button secondary" href="{% url 'detalle' auditoria.pk %}{% if resultado %}#criterio-{{ resultado.pk }}{% endif %}">Cancelar</a>
+            {% else %}
+                <a class="button secondary" href="{% url 'listar' %}">Cancelar</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+{% endblock %}

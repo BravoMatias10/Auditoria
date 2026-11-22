@@ -1,0 +1,26 @@
+{% extends 'productos/base.html' %}
+{% block title %}Iniciar sesión · Auditoría de datos{% endblock %}
+{% block content %}
+<div class="narrow">
+    <div class="intro">
+        <h1>Iniciar sesión</h1>
+        <p>Ingresa con la cuenta asignada por la administración para consultar tus auditorías.</p>
+    </div>
+    <form method="post" class="panel">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field">
+            <label for="{{ form.username.id_for_label }}">Nombre de usuario</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+        <div class="field">
+            <label for="{{ form.password.id_for_label }}">Contraseña</label>
+            {{ form.password }}
+            {{ form.password.errors }}
+        </div>
+        <button class="button" type="submit">Iniciar sesión</button>
+    </form>
+</div>
+{% endblock %}
